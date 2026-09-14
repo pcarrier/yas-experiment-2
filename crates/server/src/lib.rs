@@ -13745,6 +13745,20 @@ mod tests {
             let text = terminal.driver.seq_text(0, 0, None, 10000).text;
             assert!(text.contains("frame-03"));
             assert!(!text.contains("frame-04"));
+            // The child may still be writing frames when we release its read.
+            // Suppress input echo so the acknowledgement cannot interleave
+            // with a frame marker and corrupt the test's output oracle.
+            // SAFETY: the locked terminal owns this live PTY, and tcgetattr
+            // succeeds before its initialized settings are changed.
+            unsafe {
+                let mut settings: libc::termios = std::mem::zeroed();
+                assert_eq!(libc::tcgetattr(terminal.handle.master_fd, &mut settings), 0);
+                settings.c_lflag &= !(libc::ECHO | libc::ECHONL);
+                assert_eq!(
+                    libc::tcsetattr(terminal.handle.master_fd, libc::TCSANOW, &settings),
+                    0
+                );
+            }
             pty::pty_write_all(terminal.handle.master_fd, b"go\n");
         }
         // Let the child exit without allowing delivery to free a frame slot.

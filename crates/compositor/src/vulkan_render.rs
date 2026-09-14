@@ -7069,8 +7069,10 @@ impl VulkanRenderer {
             return None;
         }
         let packed_len = row_bytes.checked_mul(height as usize)?;
+        // Infer the request type: glibc uses c_ulong, musl uses c_int.
+        let sync_request = 0x40086200; // DMA_BUF_IOCTL_SYNC
         let start_flags = 1u64; // DMA_BUF_SYNC_START | DMA_BUF_SYNC_READ
-        let synced = unsafe { libc::ioctl(fd, 0x40086200 as libc::c_ulong, &start_flags) == 0 };
+        let synced = unsafe { libc::ioctl(fd, sync_request, &start_flags) == 0 };
         let mapped = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -7085,7 +7087,7 @@ impl VulkanRenderer {
             if synced {
                 let end_flags = 5u64;
                 unsafe {
-                    libc::ioctl(fd, 0x40086200 as libc::c_ulong, &end_flags);
+                    libc::ioctl(fd, sync_request, &end_flags);
                 }
             }
             return None;
@@ -7105,7 +7107,7 @@ impl VulkanRenderer {
             libc::munmap(mapped, size as usize);
             if synced {
                 let end_flags = 5u64;
-                libc::ioctl(fd, 0x40086200 as libc::c_ulong, &end_flags);
+                libc::ioctl(fd, sync_request, &end_flags);
             }
         }
         let opaque = fourcc.to_le_bytes()[0] == b'X';
