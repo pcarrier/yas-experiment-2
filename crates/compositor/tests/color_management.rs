@@ -17,6 +17,42 @@ mod color_client;
 use color_client::App;
 
 #[test]
+fn preferred_color_information_can_be_completed_and_requested_again() {
+    let handle = spawn_compositor(false, Arc::new(|| {}), "");
+    let conn = Connection::from_socket(UnixStream::connect(&handle.socket_name).unwrap()).unwrap();
+    let mut queue = conn.new_event_queue();
+    let q = queue.handle();
+    conn.display().get_registry(&q, ());
+    let mut app = App::default();
+    queue.roundtrip(&mut app).unwrap();
+    let manager = app.color.as_ref().expect("test requires a Vulkan renderer");
+    let surface = app.compositor.as_ref().unwrap().create_surface(&q, ());
+    let feedback = manager.get_surface_feedback(&surface, &q, ());
+    let preferred = feedback.get_preferred(&q, ());
+    let parametric = feedback.get_preferred_parametric(&q, ());
+    queue.roundtrip(&mut app).unwrap();
+    assert_eq!(app.ready, 2);
+
+    // Chromium asks for the preferred description's information on startup.
+    // Completing it destroys the new info object. Repeat after each batch so
+    // the connection must survive both destruction and object-ID reuse.
+    for batch in 1..=3 {
+        for description in [&preferred, &parametric] {
+            description.get_information(&q, ());
+        }
+        queue.roundtrip(&mut app).unwrap();
+        queue.roundtrip(&mut app).unwrap();
+        assert_eq!(app.information_done, batch * 2);
+    }
+    preferred.destroy();
+    parametric.destroy();
+    feedback.destroy();
+    surface.destroy();
+    queue.roundtrip(&mut app).unwrap();
+    handle.stop();
+}
+
+#[test]
 fn p3_and_pq_survive_composition_and_unset_restores_sdr() {
     let handle = spawn_compositor(false, Arc::new(|| {}), "");
     let conn = Connection::from_socket(UnixStream::connect(&handle.socket_name).unwrap()).unwrap();

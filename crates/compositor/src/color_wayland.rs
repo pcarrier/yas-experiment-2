@@ -12,11 +12,12 @@ use wayland_protocols::wp::color_management::v1::server::{
     wp_color_manager_v1::{self as manager},
     wp_image_description_creator_icc_v1::{self as icc, WpImageDescriptionCreatorIccV1},
     wp_image_description_creator_params_v1::{self as params, WpImageDescriptionCreatorParamsV1},
-    wp_image_description_info_v1::WpImageDescriptionInfoV1,
     wp_image_description_v1::{self as description, WpImageDescriptionV1},
 };
 
-pub(super) use wayland_protocols::wp::color_management::v1::server::wp_color_manager_v1::WpColorManagerV1;
+pub(super) use wayland_protocols::wp::color_management::v1::server::{
+    wp_color_manager_v1::WpColorManagerV1, wp_image_description_info_v1::WpImageDescriptionInfoV1,
+};
 
 struct Description {
     icc: Option<Arc<super::icc::IccProfile>>,
@@ -637,7 +638,7 @@ impl Dispatch<WpImageDescriptionCreatorParamsV1, Mutex<Params>> for Compositor {
 
 impl Dispatch<WpImageDescriptionV1, Description> for Compositor {
     fn request(
-        _: &mut Self,
+        state: &mut Self,
         _: &Client,
         object: &WpImageDescriptionV1,
         request: description::Request,
@@ -668,7 +669,10 @@ impl Dispatch<WpImageDescriptionV1, Description> for Compositor {
                 708000, 292000, 170000, 797000, 131000, 46000, 312700, 329000,
             );
             info.target_luminance(50, 10000);
-            info.done();
+            // `done` destroys the new object. The backend installs its data
+            // after this callback returns, so defer destruction until the
+            // request dispatch is complete.
+            state.pending_color_info_done.push(info);
         }
     }
 }

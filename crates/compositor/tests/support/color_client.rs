@@ -15,8 +15,9 @@ use wayland_client::protocol::{
 use wayland_client::{Connection, Dispatch, QueueHandle, delegate_noop};
 use wayland_protocols::{
     wp::color_management::v1::client::{
-        wp_color_management_surface_v1 as cs, wp_color_manager_v1 as cm,
-        wp_image_description_creator_icc_v1 as ci, wp_image_description_creator_params_v1 as cp,
+        wp_color_management_surface_feedback_v1 as feedback, wp_color_management_surface_v1 as cs,
+        wp_color_manager_v1 as cm, wp_image_description_creator_icc_v1 as ci,
+        wp_image_description_creator_params_v1 as cp, wp_image_description_info_v1 as info,
         wp_image_description_v1 as id,
     },
     xdg::shell::client::{xdg_surface, xdg_toplevel, xdg_wm_base},
@@ -29,6 +30,7 @@ pub struct App {
     pub wm: Option<xdg_wm_base::XdgWmBase>,
     pub color: Option<cm::WpColorManagerV1>,
     pub ready: usize,
+    pub information_done: usize,
 }
 impl Dispatch<wl_registry::WlRegistry, ()> for App {
     fn event(
@@ -105,8 +107,24 @@ delegate_noop!(App: ignore wl_buffer::WlBuffer);
 delegate_noop!(App: ignore xdg_toplevel::XdgToplevel);
 delegate_noop!(App: ignore cm::WpColorManagerV1);
 delegate_noop!(App: ignore cs::WpColorManagementSurfaceV1);
+delegate_noop!(App: ignore feedback::WpColorManagementSurfaceFeedbackV1);
 delegate_noop!(App: ignore cp::WpImageDescriptionCreatorParamsV1);
 delegate_noop!(App: ignore ci::WpImageDescriptionCreatorIccV1);
+
+impl Dispatch<info::WpImageDescriptionInfoV1, ()> for App {
+    fn event(
+        s: &mut Self,
+        _: &info::WpImageDescriptionInfoV1,
+        event: info::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let info::Event::Done = event {
+            s.information_done += 1;
+        }
+    }
+}
 
 pub struct ColorClient {
     pub handle: TestCompositor,

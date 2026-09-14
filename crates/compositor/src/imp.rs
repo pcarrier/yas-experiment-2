@@ -2608,6 +2608,9 @@ struct Compositor {
     /// committed callback wait an entire refresh period. Keep only the newest
     /// such deadline per toplevel and consume it after that commit instead.
     pending_request_frames: FxHashMap<u16, std::time::Instant>,
+    /// Color-information `done` destroys its object. Send it only after
+    /// Wayland dispatch has installed the new resource's object data.
+    pending_color_info_done: Vec<color_wayland::WpImageDescriptionInfoV1>,
     /// Toplevels known to contain at least one frame callback or presentation
     /// feedback. Fixed clocks consult this before walking a surface tree.
     frame_callback_toplevels: FxHashSet<u16>,
@@ -12758,6 +12761,7 @@ fn run_compositor(
         last_request_frame_ms: FxHashMap::default(),
         last_topless_frame_ms: FxHashMap::default(),
         pending_request_frames: FxHashMap::default(),
+        pending_color_info_done: Vec::new(),
         frame_callback_toplevels: FxHashSet::default(),
         client_identity: FxHashMap::default(),
         next_surface_id: 1,
@@ -12874,6 +12878,9 @@ fn run_compositor(
                 && state.verbose
             {
                 eprintln!("[compositor] dispatch_clients error: {e}");
+            }
+            for info in state.pending_color_info_done.drain(..) {
+                info.done();
             }
             if let Err(e) = d.flush_clients()
                 && state.verbose
