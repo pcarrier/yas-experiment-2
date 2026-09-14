@@ -161,6 +161,7 @@ impl SurfaceEncoderPreference {
     /// - `H264Vaapi`: libva has no H.264 4:4:4 encode profile — the enum stops
     ///   at `VAProfileH264High422`, so there is nothing to pass to
     ///   `vaCreateConfig`.
+    /// - `NvencAV1`: the NVENC SDK 12.1 AV1 API only supports 4:2:0.
     /// - `H264Software`: x264 encodes 4:4:4 (High 4:4:4 Predictive); openh264
     ///   is 4:2:0-only.  A build without the x264 feature is structurally
     ///   4:2:0; a build with it stays a runtime probe, since
@@ -179,7 +180,7 @@ impl SurfaceEncoderPreference {
     #[allow(clippy::match_like_matches_macro)]
     pub fn supports_444_by_encoder(self) -> bool {
         match self {
-            Self::H264Vaapi => false,
+            Self::H264Vaapi | Self::NvencAV1 => false,
             // Both Vulkan Video encoders read a two-plane
             // `G8_B8R8_2PLANE_444_UNORM` source at 4:4:4 — H.264 as High
             // 4:4:4 Predictive, AV1 as High profile — but only where the
@@ -3731,8 +3732,8 @@ mod tests {
         assert_eq!(av1_profile_digit(ChromaSubsampling::Cs420), 0);
     }
 
-    /// 4:4:4 is a structural non-starter for H.264 VA-API (and for
-    /// h264-software in builds without x264), so the encoder chain must not
+    /// 4:4:4 is a structural non-starter for H.264 VA-API and NVENC AV1 (and
+    /// for h264-software without x264), so the encoder chain must not
     /// spend a probe on them.  `AV1Vaapi` is excluded from this list on
     /// purpose — it probes for `VAProfileAV1Profile1` at runtime.
     #[test]
@@ -3745,7 +3746,7 @@ mod tests {
         assert!(SurfaceEncoderPreference::AV1Vaapi.supports_444_by_encoder());
         assert!(SurfaceEncoderPreference::AV1Software.supports_444_by_encoder());
         assert!(SurfaceEncoderPreference::NvencH264.supports_444_by_encoder());
-        assert!(SurfaceEncoderPreference::NvencAV1.supports_444_by_encoder());
+        assert!(!SurfaceEncoderPreference::NvencAV1.supports_444_by_encoder());
     }
 
     /// Build a minimal AV1 OBU with the given type, has_size=1.
