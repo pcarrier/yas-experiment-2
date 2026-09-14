@@ -583,7 +583,10 @@ let
       pkgs.python3
       pkgs.pkg-config
       pkgs.libopus
-    ];
+    ]
+    # The software Vulkan driver loads Nix libraries at runtime. Link the
+    # instrumented tests with the same libc instead of the runner's system cc.
+    ++ pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.stdenv.cc ];
     text = ''
       export PKG_CONFIG_PATH="${pkgs.libopus.dev}/lib/pkgconfig''${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
       export LIBRARY_PATH="${pkgs.libopus}/lib''${LIBRARY_PATH:+:$LIBRARY_PATH}"
